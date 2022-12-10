@@ -31,7 +31,25 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
 # loop over the input image paths
 for image in images:
     myDpi = 96
-    fig, ax = plt.subplot_mosaic([['Original', 'Resized', "Gray"], ["Smoothed", "Blackhat", "b"]], figsize=(1600/myDpi, 1000/myDpi), dpi=myDpi)
+    fig, ax = plt.subplot_mosaic([
+        ['Original', 'Resized', "Gray"],
+        ["Smoothed", "Blackhat", "b"]
+        ], figsize=(1600/myDpi, 1000/myDpi), dpi=myDpi)
     makeSubplot(image, ax, "Original", title="Original")
+
+    image = imutils.resize(image, width=600)
+    makeSubplot(image, ax, "Resized", title="Resized")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    makeSubplot(gray, ax, "Gray", title="Gray")
+
+	# smooth the image using a 3x3 Gaussian
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    makeSubplot(gray, ax, "Smoothed", title="Smoothed")
+
+    # Blackhat - enhances dark objects of interest in a bright background.
+    # The black-hat transform is defined as the difference between the closing and the input image.
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
+    makeSubplot(blackhat, ax, "Blackhat", title="Blackhat")
 
 plt.show()
