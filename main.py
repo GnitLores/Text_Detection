@@ -129,6 +129,36 @@ for image in images:
     SentencesJoined = cv2.morphologyEx(masked, cv2.MORPH_CLOSE, sentenceKernel)
     makeSubplot(SentencesJoined, ax, "JoinSentences", title="JoinSentences")
 
+    fig, ax = plt.subplot_mosaic([
+        ["Components", 'Removed', "Tmp"]
+        ], figsize=(1600/myDpi, 1000/myDpi), dpi=myDpi)
+
+    # Apply the Component analysis function
+    analysis = cv2.connectedComponentsWithStats(SentencesJoined, 4, cv2.CV_32S)
+    (totalLabels, label_ids, values, centroid) = analysis
+    # Initialize a new image to
+    # store all the output components
+    outputMask = np.zeros(SentencesJoined.shape, dtype="uint8")
+    # Loop through each component
+    for i in range(1, totalLabels):
+        area = values[i, cv2.CC_STAT_AREA]
+        width = values[i, cv2.CC_STAT_WIDTH]
+        height = values[i, cv2.CC_STAT_HEIGHT]
+    
+        if width < 10 or height < 10 or width > height:
+            # Labels stores all the IDs of the components on the each pixel
+            # It has the same dimension as the threshold
+            # So we'll check the component
+            # then convert it to 255 value to mark it white
+            componentMask = (label_ids == i).astype("uint8") * 255
+            
+            # Creating the Final output mask
+            outputMask = cv2.bitwise_or(outputMask, componentMask)
+    makeSubplot(outputMask, ax, "Components", title="Components")
+
+    masked2 = cv2.subtract(SentencesJoined, outputMask)
+    makeSubplot(masked2, ax, "Removed", title="Removed")
+
 
 
     # fig, ax = plt.subplot_mosaic([
