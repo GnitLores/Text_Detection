@@ -104,6 +104,32 @@ for image in images:
 
 
 
+    fig, ax = plt.subplot_mosaic([
+        ["RemoveLines", 'JoinSentences', "Tmp"]
+        ], figsize=(1600/myDpi, 1000/myDpi), dpi=myDpi)
+
+    # Remove vertical
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 25))
+    detected_lines = cv2.morphologyEx(masked, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
+    cnts = cv2.findContours(detected_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+    for c in cnts:
+        cv2.drawContours(masked, [c], -1, (0,0,0), 2)
+    makeSubplot(masked, ax, "RemoveLines", title="RemoveLines")
+
+    # # apply a closing operation using the rectangular kernel to close
+	# # gaps in between letters
+    # charKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    # charsJoined = cv2.morphologyEx(masked, cv2.MORPH_CLOSE, charKernel)
+    # makeSubplot(charsJoined, ax, "Chars", title="Chars")
+
+    # apply a closing operation using the rectangular kernel to close
+	# gaps in between letters
+    sentenceKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 13))
+    SentencesJoined = cv2.morphologyEx(masked, cv2.MORPH_CLOSE, sentenceKernel)
+    makeSubplot(SentencesJoined, ax, "JoinSentences", title="JoinSentences")
+
+
 
     # fig, ax = plt.subplot_mosaic([
     #     ["Threshold", 'Horizontal', "Vertical"]
