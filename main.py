@@ -145,7 +145,7 @@ for image in images:
         width = values[i, cv2.CC_STAT_WIDTH]
         height = values[i, cv2.CC_STAT_HEIGHT]
     
-        if width < 10 or height < 10 or width > height:
+        if width < 10 or height < 10 or width > height or area < width * height * 0.3:
             # Labels stores all the IDs of the components on the each pixel
             # It has the same dimension as the threshold
             # So we'll check the component
