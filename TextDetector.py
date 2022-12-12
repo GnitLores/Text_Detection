@@ -56,6 +56,20 @@ class TextDetector:
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 13))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
+    
+    def __analyze_connected_components(self, filter_component):
+        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
+        (total_labels, label_ids, values, centroid) = analysis
+        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
+        for i in range(1, total_labels): # Check each component
+            area = values[i, cv2.CC_STAT_AREA] 
+            width = values[i, cv2.CC_STAT_WIDTH]
+            height = values[i, cv2.CC_STAT_HEIGHT]
+
+            if filter_component(area, width, height):
+                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
+                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
+        return output_mask
 
     def __filter_chars(self):
         
@@ -68,25 +82,18 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
         # Create mask of components that are very unlike characters
-        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (total_labels, label_ids, values, centroid) = analysis
-        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        for i in range(1, total_labels): # Check each component
-            area = values[i, cv2.CC_STAT_AREA] 
-            width = values[i, cv2.CC_STAT_WIDTH]
-            height = values[i, cv2.CC_STAT_HEIGHT]
-
+        def filter_component(area, width, height):
             is_too_small = area < 10
             is_too_big = area > 250
             is_too_wide = width > 3 * height
             do_reject = is_too_small or is_too_big or is_too_wide
-            if do_reject:
-                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
-                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
-        if self.do_visualize: self.__make_subplot(output_mask, ax, key2, title = "Non-character Components")
+            return do_reject
+            
+        mask = self.__analyze_connected_components(filter_component)
+        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-character Components")
 
         # Subtract mask from image
-        self.image = cv2.subtract(self.image, output_mask)
+        self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Characters filtered")
 
     def __process_secondary(self):
@@ -124,23 +131,16 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
 
         # Create mask of components that are very unlike sentences
-        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (total_labels, label_ids, values, centroid) = analysis
-        output_mask = np.zeros(self.image.shape, dtype="uint8") # Mask to remove
-        for i in range(1, total_labels):  # Check each component
-            area = values[i, cv2.CC_STAT_AREA]
-            width = values[i, cv2.CC_STAT_WIDTH]
-            height = values[i, cv2.CC_STAT_HEIGHT]
-
+        def filter_component(area, width, height):
             is_too_small = width < 10 or height < 10
             is_not_vertical_box = width > height or area < width * height * 0.3
             do_reject = is_too_small or is_not_vertical_box
-            if do_reject:
-                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
-                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
-        if self.do_visualize: self.__make_subplot(output_mask, ax, key2, title = "Non-sentence Components")
+            return do_reject
 
-        self.image = cv2.subtract(self.image, output_mask)
+        mask = self.__analyze_connected_components(filter_component)
+        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-sentence Components")
+
+        self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
     
     def __filter_text_blocks(self):
