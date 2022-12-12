@@ -120,7 +120,7 @@ class TextDetector:
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "3: Secondary processing")
 
         def remove_lines(do_vertical = True):
-            kernel_size = (self.page_width // 600, self.page_width // 24)
+            kernel_size = (min(1, self.page_width // 600), self.page_width // 24)
             if not do_vertical: kernel_size = kernel_size[::-1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
             detected_lines = cv2.morphologyEx(self.image, cv2.MORPH_OPEN, kernel, iterations = 2)
