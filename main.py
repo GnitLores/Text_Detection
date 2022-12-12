@@ -35,6 +35,7 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
 for image in images:
     textDetector = TextDetector(image, do_visualize = True)
     textDetector.detect_text()
+    
 
     height, width, _ = image.shape
 
