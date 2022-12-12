@@ -29,7 +29,7 @@ class TextDetector:
         return fig, ax
 
     def __make_subplot(self, image, ax, key, colormap = "gray", title = ""):
-        ax[key].imshow(image, cmap=colormap)
+        ax[key].imshow(image, cmap = colormap)
         ax[key].set_title(title)
         ax[key].axis('off')
 
@@ -52,8 +52,8 @@ class TextDetector:
 
         # Blackhat - enhances dark objects of interest in a bright background.
         # The black-hat transform is defined as the difference between the closing and the input image.
-        rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 13))
-        self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, rectKernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 13))
+        self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
 
     def __filter_chars(self):
@@ -68,20 +68,24 @@ class TextDetector:
 
         # Create mask of components that are very unlike characters
         analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (totalLabels, label_ids, values, centroid) = analysis
-        outputMask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        for i in range(1, totalLabels): # Check each component
+        (total_labels, label_ids, values, centroid) = analysis
+        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
+        for i in range(1, total_labels): # Check each component
             area = values[i, cv2.CC_STAT_AREA] 
             width = values[i, cv2.CC_STAT_WIDTH]
             height = values[i, cv2.CC_STAT_HEIGHT]
-        
-            if area < 10 or area > 250 or width > 3 * height:
-                componentMask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
-                outputMask = cv2.bitwise_or(outputMask, componentMask) # Add component to mask
-        if self.do_visualize: self.__make_subplot(outputMask, ax, key2, title = "Non-character Components")
+
+            is_too_small = area < 10
+            is_too_big = area > 250
+            is_too_wide = width > 3 * height
+            do_reject = is_too_small or is_too_big or is_too_wide
+            if do_reject:
+                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
+                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
+        if self.do_visualize: self.__make_subplot(output_mask, ax, key2, title = "Non-character Components")
 
         # Subtract mask from image
-        self.image = cv2.subtract(self.image, outputMask)
+        self.image = cv2.subtract(self.image, output_mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Characters filtered")
 
     def __process_secondary(self):
@@ -89,22 +93,22 @@ class TextDetector:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "3: Secondary processing")
 
-        def remove_line(remove_vertical = True):
+        def remove_lines(do_vertical = True):
             kernel_size = (1, 25)
-            if not remove_vertical: kernel_size = kernel_size[::-1]
-            vertical_line_removal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
-            detected_lines = cv2.morphologyEx(self.image, cv2.MORPH_OPEN, vertical_line_removal_kernel, iterations = 2)
+            if not do_vertical: kernel_size = kernel_size[::-1]
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
+            detected_lines = cv2.morphologyEx(self.image, cv2.MORPH_OPEN, kernel, iterations = 2)
             cnts = cv2.findContours(detected_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = cnts[0] if len(cnts) == 2 else cnts[1]
             for c in cnts:
                 cv2.drawContours(self.image, [c], -1, (0, 0, 0), 2)
 
         # Remove vertical lines
-        remove_line(True)
+        remove_lines(True)
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Remove Vertical Lines")
 
         # Remove horizontal lines
-        remove_line(False)
+        remove_lines(False)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Remove Horizontal Lines")
 
     def __filter_sentences(self):
@@ -114,23 +118,26 @@ class TextDetector:
 
         # apply a closing operation using a rectangular kernel to close
         # gaps in between letters
-        sentenceKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 13))
-        self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentenceKernel)
+        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 13))
+        self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
 
         # Create mask of components that are very unlike sentences
         analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (totalLabels, label_ids, values, centroid) = analysis
-        outputMask = np.zeros(self.image.shape, dtype="uint8") # Mask to remove
-        for i in range(1, totalLabels):  # Check each component
+        (total_labels, label_ids, values, centroid) = analysis
+        output_mask = np.zeros(self.image.shape, dtype="uint8") # Mask to remove
+        for i in range(1, total_labels):  # Check each component
             area = values[i, cv2.CC_STAT_AREA]
             width = values[i, cv2.CC_STAT_WIDTH]
             height = values[i, cv2.CC_STAT_HEIGHT]
-        
-            if width < 10 or height < 10 or width > height or area < width * height * 0.3:
-                componentMask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
-                outputMask = cv2.bitwise_or(outputMask, componentMask) # Add component to mask
-        if self.do_visualize: self.__make_subplot(outputMask, ax, key2, title = "Non-sentence Components")
 
-        self.image = cv2.subtract(self.image, outputMask)
+            is_too_small = width < 10 or height < 10
+            is_not_vertical_box = width > height or area < width * height * 0.3
+            do_reject = is_too_small or is_not_vertical_box
+            if do_reject:
+                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
+                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
+        if self.do_visualize: self.__make_subplot(output_mask, ax, key2, title = "Non-sentence Components")
+
+        self.image = cv2.subtract(self.image, output_mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
