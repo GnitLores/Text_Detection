@@ -66,6 +66,7 @@ class TextDetector:
 
         # smooth the image using Gaussian to reduce high frequeny noise
         gauss_size = self.page_width // 200
+        if gauss_size % 2 == 0: gauss_size += 1 # Must be odd
         self.image = cv2.GaussianBlur(self.image, (gauss_size, gauss_size), 0)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
 
