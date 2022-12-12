@@ -88,7 +88,7 @@ class TextDetector:
             is_too_wide = width > 3 * height
             do_reject = is_too_small or is_too_big or is_too_wide
             return do_reject
-            
+
         mask = self.__analyze_connected_components(filter_component)
         if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-character Components")
 
@@ -153,3 +153,15 @@ class TextDetector:
         sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 2))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
+
+        # Create mask of components that are very unlike text blocks
+        def filter_component(area, width, height):
+            is_too_small = area < 250
+            do_reject = is_too_small
+            return do_reject
+
+        mask = self.__analyze_connected_components(filter_component)
+        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-Text Block Components")
+
+        self.image = cv2.subtract(self.image, mask)
+        if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
