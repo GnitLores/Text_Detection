@@ -17,6 +17,7 @@ class TextDetector:
         self.__filter_chars()
         self.__process_secondary()
         self.__filter_sentences()
+        self.__filter_text_blocks()
 
         if self.do_visualize: plt.show()
 
@@ -114,7 +115,7 @@ class TextDetector:
     def __filter_sentences(self):
         if self.do_visualize:
             key1, key2, key3 = "1", '2', "3"
-            fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "4: Filter sentences")
+            fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "4: Filter Sentences")
 
         # apply a closing operation using a rectangular kernel to close
         # gaps in between letters
@@ -141,3 +142,14 @@ class TextDetector:
 
         self.image = cv2.subtract(self.image, output_mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
+    
+    def __filter_text_blocks(self):
+        if self.do_visualize:
+            key1, key2, key3 = "1", '2', "3"
+            fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "5: Filter Text Blocks")
+        
+        # apply a closing operation using a rectangular kernel to close
+        # gaps between lines of text
+        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 2))
+        self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
+        if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
