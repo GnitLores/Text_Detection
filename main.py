@@ -8,6 +8,8 @@ from pathlib import Path
 from matplotlib import pyplot as plt
 from matplotlib import image as mpimg
 import os
+from TextDetector import *
+
 
 def load_images_from_folder(folder):
     images = []
@@ -31,6 +33,9 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
 
 # loop over the input image paths
 for image in images:
+    textDetector = TextDetector(image, do_visualize = True)
+    textDetector.detect_text()
+
     height, width, _ = image.shape
 
     myDpi = 96
