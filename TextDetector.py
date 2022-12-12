@@ -2,22 +2,39 @@ import imutils
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+import timeit
 
 class TextDetector:
-    def __init__(self, image, do_visualize = False, is_text_vertical = True):
+    def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
         self.original_image = image
         self.do_visualize = do_visualize
+        self.do_profile = do_profile
         self.vert_text = is_text_vertical
         self.height, self.width, _ = image.shape
 
         self.processed_width = 600
         
     def detect_text(self):
+        if self.do_profile: t0 = timeit.default_timer()
         self.__preprocess()
+        if self.do_profile: t1 = timeit.default_timer()
         self.__filter_chars()
+        if self.do_profile: t2 = timeit.default_timer()
         self.__process_secondary()
+        if self.do_profile: t3 = timeit.default_timer()
         self.__filter_sentences()
+        if self.do_profile: t4 = timeit.default_timer()
         self.__filter_text_blocks()
+        if self.do_profile: t5 = timeit.default_timer()
+
+        if self.do_profile:
+            width, precision = 3, 2
+            print_time = lambda text, t_a, t_b : print(f'{text}: {t_b - t_a:{width}.{precision}} s')
+            print_time("Preprocessing", t0, t1)
+            print_time("Filter chars", t1, t2)
+            print_time("Secondary processing", t2, t3)
+            print_time("Filter sentences", t3, t4)
+            print_time("Filter text blocks", t4, t5)
 
         if self.do_visualize: plt.show()
 

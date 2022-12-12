@@ -21,4 +21,5 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
 # loop over the input image paths
 for image in images:
     textDetector = TextDetector(image, do_visualize = True)
+    # textDetector = TextDetector(image, do_profile = True)
     textDetector.detect_text()
