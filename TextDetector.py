@@ -12,7 +12,7 @@ class TextDetector:
         self.vert_text = is_text_vertical
         self.height, self.width, _ = image.shape
 
-        self.processed_width = 600
+        self.page_width = 600
         
     def detect_text(self):
         if self.do_profile: t0 = timeit.default_timer()
@@ -59,18 +59,19 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.original_image, ax, key1, title = "Original Image")
         
         # Resize to uniform width
-        self.image = imutils.resize(self.original_image, width = self.processed_width)
+        self.image = imutils.resize(self.original_image, width = self.page_width)
 
         # Convert to grayscale
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
 
         # smooth the image using Gaussian to reduce high frequeny noise
-        self.image = cv2.GaussianBlur(self.image, (3, 3), 0)
+        gauss_size = self.page_width // 200
+        self.image = cv2.GaussianBlur(self.image, (gauss_size, gauss_size), 0)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
 
         # Blackhat - enhances dark objects of interest in a bright background.
         # The black-hat transform is defined as the difference between the closing and the input image.
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 13))
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 120, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
     
@@ -100,8 +101,8 @@ class TextDetector:
 
         # Create mask of components that are very unlike characters
         def filter_component(area, width, height):
-            is_too_small = area < 10
-            is_too_big = area > 250
+            is_too_small = area < self.page_width // 60
+            is_too_big = area > self.page_width // 2.4
             is_too_wide = width > 3 * height
             do_reject = is_too_small or is_too_big or is_too_wide
             return do_reject
@@ -119,7 +120,7 @@ class TextDetector:
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "3: Secondary processing")
 
         def remove_lines(do_vertical = True):
-            kernel_size = (1, 25)
+            kernel_size = (self.page_width // 600, self.page_width // 24)
             if not do_vertical: kernel_size = kernel_size[::-1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
             detected_lines = cv2.morphologyEx(self.image, cv2.MORPH_OPEN, kernel, iterations = 2)
@@ -143,13 +144,13 @@ class TextDetector:
 
         # apply a closing operation using a rectangular kernel to close
         # gaps in between letters
-        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 13))
+        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 300, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
 
         # Create mask of components that are very unlike sentences
         def filter_component(area, width, height):
-            is_too_small = width < 10 or height < 10
+            is_too_small = width < self.page_width // 60 or height < self.page_width // 60
             is_not_vertical_box = width > height or area < width * height * 0.3
             do_reject = is_too_small or is_not_vertical_box
             return do_reject
@@ -167,13 +168,13 @@ class TextDetector:
         
         # apply a closing operation using a rectangular kernel to close
         # gaps between lines of text
-        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 2))
+        sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 50, self.page_width // 300))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
 
         # Create mask of components that are very unlike text blocks
         def filter_component(area, width, height):
-            is_too_small = area < 250
+            is_too_small = area < self.page_width // 2.4
             do_reject = is_too_small
             return do_reject
 
