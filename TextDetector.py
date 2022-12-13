@@ -84,6 +84,7 @@ class TextDetector:
 
         # Convert to grayscale
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.resized_image = self.image.copy()
 
         # smooth the image using Gaussian to reduce high frequeny noise
         gauss_size = self.page_width // 200
@@ -97,9 +98,13 @@ class TextDetector:
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
     
+    def __find_component_stats(self, image):
+        analysis = cv2.connectedComponentsWithStats(image, 4, cv2.CV_32S)
+        total_labels, label_ids, values, centroid = analysis
+        return total_labels, label_ids, values, centroid
+
     def __analyze_connected_components(self, filter_component):
-        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (total_labels, label_ids, values, centroid) = analysis
+        total_labels, label_ids, values, centroid = self.__find_component_stats(self.image)
         output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
         for i in range(1, total_labels): # Check each component
             area = values[i, cv2.CC_STAT_AREA] 
@@ -160,6 +165,8 @@ class TextDetector:
         remove_lines(False)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Remove Horizontal Lines")
 
+        self.processed_image = self.image.copy()
+
     def __filter_sentences(self):
         if self.do_visualize:
             key1, key2, key3 = "1", '2', "3"
@@ -183,6 +190,8 @@ class TextDetector:
 
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
+
+        self.sentence_image = self.image.copy()
     
     def __filter_text_blocks(self):
         if self.do_visualize:
@@ -211,19 +220,20 @@ class TextDetector:
         # if self.do_visualize:
         #     key1, key2, key3 = "1", '2', "3"
         #     fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "6: Select Text Areas")
-        def analyse_candidate(candidate_image):
 
-            return
+        total_labels, label_ids, values, centroid = self.__find_component_stats(self.image)
+        fig1, ax1 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (components)")
+        fig2, ax2 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (image)")
+        fig3, ax3 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (processed)")
 
+        # output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
+        # tmp_img = self.binary_image.copy()
+        tmp_img = self.processed_image
+        # tmp_img = self.sentence_image.copy()
 
-        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
-        (total_labels, label_ids, values, centroid) = analysis
-        fig1, ax1 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates")
-
-        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        tmp_img=self.binary_image.copy()
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 150, self.page_width // 600))
-        tmp_img = cv2.morphologyEx(tmp_img, cv2.MORPH_CLOSE, kernel)
+        # # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(0, self.page_width // 300), self.page_width // 75))
+        # tmp_img = cv2.morphologyEx(tmp_img, cv2.MORPH_CLOSE, kernel)
         for i in range(1, total_labels): # Check each component
             # Calculate coordinates with small buffer
             x1 = values[i, cv2.CC_STAT_LEFT]
@@ -238,5 +248,40 @@ class TextDetector:
             y1 = max(0, y1 - buffer)
 
             component_image = tmp_img[y1:y2, x1:x2]
-            self.__make_subplot(component_image, ax1, i, title = str(i))
+            do_include, description = self.__analyse_candidate(component_image)
+            image_section = self.resized_image[y1:y2, x1:x2]
+            processed_section = cv2.threshold(image_section, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+            processed_section = cv2.bitwise_not(processed_section)
+            kernel = np.ones((2, 2), np.uint8)
+            processed_section = cv2.dilate(processed_section, kernel, iterations=1)
+            self.__make_subplot(component_image, ax1, i, title = f'{i}: ' + description)
+            self.__make_subplot(image_section, ax2, i, title = f'{i}: ' + description)
+            self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
         return
+
+    def __analyse_candidate(self, candidate_image):
+            total_labels, label_ids, values, centroid = self.__find_component_stats(candidate_image)
+            n_components_total = total_labels - 1
+            widths = []
+            heights = []
+            areas = []
+            is_squares = []
+            for i in range(1, total_labels): # Check each component
+                width = values[i, cv2.CC_STAT_WIDTH]
+                height = values[i, cv2.CC_STAT_HEIGHT]
+                area = values[i, cv2.CC_STAT_AREA]
+                if area < 20: continue
+                
+                is_square = 0.5 < width / height < 2
+
+                widths.append(width)
+                heights.append(height)
+                areas.append(area)
+                is_squares.append(is_square)
+            n_square = sum(is_squares)
+            m_height = np.mean(heights)
+            m_width = np.mean(widths)
+            mean_size = m_height + m_width / 2
+            description = f'{n_components_total} total, {len(widths)} comps'
+            description = ""
+            return True, description 
