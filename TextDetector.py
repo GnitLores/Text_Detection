@@ -67,6 +67,11 @@ class TextDetector:
         ax[key].set_title(title)
         ax[key].axis('off')
 
+    def __make_subplot_graph(self, data, ax, key, title = ""):
+        ax[key].plot(data)
+        ax[key].set_title(title)
+        ax[key].axis('off')
+
     def __preprocess(self):
         
         if self.do_visualize:
@@ -206,36 +211,32 @@ class TextDetector:
         # if self.do_visualize:
         #     key1, key2, key3 = "1", '2', "3"
         #     fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "6: Select Text Areas")
+        def analyse_candidate(candidate_image):
+
+            return
 
 
         analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
         (total_labels, label_ids, values, centroid) = analysis
-        fig, ax = self.__make_subplot_grid_figure(total_labels, title = "Text Area Candidates")
+        fig1, ax1 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates")
 
         output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        new_img=self.binary_image.copy()
+        tmp_img=self.binary_image.copy()
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 150, self.page_width // 600))
+        tmp_img = cv2.morphologyEx(tmp_img, cv2.MORPH_CLOSE, kernel)
         for i in range(1, total_labels): # Check each component
-            # Create a new image for bounding boxes
-            
-            
-            # Now extract the coordinate points
+            # Calculate coordinates with small buffer
             x1 = values[i, cv2.CC_STAT_LEFT]
             y1 = values[i, cv2.CC_STAT_TOP]
             w = values[i, cv2.CC_STAT_WIDTH]
             h = values[i, cv2.CC_STAT_HEIGHT]
-            
-            # Coordinate of the bounding box
-            pt1 = (x1, y1)
-            pt2 = (x1 + w, y1 + h)
-            (X, Y) = centroid[i]
+            im_h, im_w = tmp_img.shape
+            buffer = self.page_width // 200
+            y2 = min(im_h - 1, y1 + h + buffer)
+            x2 = min(im_w - 1, x1 + w + buffer)
+            x1 = max(0, x1 - buffer)
+            y1 = max(0, y1 - buffer)
 
-            test = self.binary_image[y1 - 2:y1 + h, x1 - 2:x1 + w]
-            self.__make_subplot(test, ax, i, title = str(i))
-            # # Create a new array to show individual component
-            # component = np.zeros(self.binary_image.shape, dtype="uint8")
-            # componentMask = (label_ids == i).astype("uint8") * 255
-            pass
-            # # Apply the mask using the bitwise operator
-            # component = cv2.bitwise_or(component,componentMask)
-            # output = cv2.bitwise_or(output, componentMask)
+            component_image = tmp_img[y1:y2, x1:x2]
+            self.__make_subplot(component_image, ax1, i, title = str(i))
         return
