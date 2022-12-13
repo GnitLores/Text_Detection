@@ -1,3 +1,4 @@
+import math
 import imutils
 import cv2
 import numpy as np
@@ -26,6 +27,8 @@ class TextDetector:
         if self.do_profile: t4 = timeit.default_timer()
         self.__filter_text_blocks()
         if self.do_profile: t5 = timeit.default_timer()
+        self.__select_text_areas()
+        if self.do_profile: t6 = timeit.default_timer()
 
         if self.do_profile:
             width, precision = 3, 2
@@ -35,14 +38,27 @@ class TextDetector:
             print_time("Secondary processing", t2, t3)
             print_time("Filter sentences", t3, t4)
             print_time("Filter text blocks", t4, t5)
+            print_time("Select text areas", t5, t6)
 
         if self.do_visualize: plt.show()
+        plt.show() # TMP REMOVE!!
 
     def __make_subplot_figure(self, subplot_keys, title = ""):
         dpi = 96
         figure_width = 1600
         figure_height = 1000
         fig, ax = plt.subplot_mosaic([subplot_keys], figsize = (figure_width / dpi, figure_height / dpi), dpi = dpi)
+        fig.suptitle(title)
+        return fig, ax
+
+    def __make_subplot_grid_figure(self, n_subplots, title = ""):
+        n_cols = math.ceil(math.sqrt(n_subplots))
+        n_rows = math.ceil(n_subplots / n_cols)
+        subplot_keys = [[c + (n_cols * r) + 1 for c in range(n_cols)] for r in range(n_rows)]
+        dpi = 96
+        figure_width = 1600
+        figure_height = 1000
+        fig, ax = plt.subplot_mosaic(subplot_keys, figsize = (figure_width / dpi, figure_height / dpi), dpi = dpi)
         fig.suptitle(title)
         return fig, ax
 
@@ -97,7 +113,8 @@ class TextDetector:
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "2: Filter Characters")
 
         # Get black/white image with otsu threshold
-        self.image = cv2.threshold(self.image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        self.binary_image = cv2.threshold(self.image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        self.image = self.binary_image.copy()
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
         # Create mask of components that are very unlike characters
@@ -184,3 +201,41 @@ class TextDetector:
 
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
+
+    def __select_text_areas(self):
+        # if self.do_visualize:
+        #     key1, key2, key3 = "1", '2', "3"
+        #     fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "6: Select Text Areas")
+
+
+        analysis = cv2.connectedComponentsWithStats(self.image, 4, cv2.CV_32S)
+        (total_labels, label_ids, values, centroid) = analysis
+        fig, ax = self.__make_subplot_grid_figure(total_labels, title = "Text Area Candidates")
+
+        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
+        new_img=self.binary_image.copy()
+        for i in range(1, total_labels): # Check each component
+            # Create a new image for bounding boxes
+            
+            
+            # Now extract the coordinate points
+            x1 = values[i, cv2.CC_STAT_LEFT]
+            y1 = values[i, cv2.CC_STAT_TOP]
+            w = values[i, cv2.CC_STAT_WIDTH]
+            h = values[i, cv2.CC_STAT_HEIGHT]
+            
+            # Coordinate of the bounding box
+            pt1 = (x1, y1)
+            pt2 = (x1 + w, y1 + h)
+            (X, Y) = centroid[i]
+
+            test = self.binary_image[y1 - 2:y1 + h, x1 - 2:x1 + w]
+            self.__make_subplot(test, ax, i, title = str(i))
+            # # Create a new array to show individual component
+            # component = np.zeros(self.binary_image.shape, dtype="uint8")
+            # componentMask = (label_ids == i).astype("uint8") * 255
+            pass
+            # # Apply the mask using the bitwise operator
+            # component = cv2.bitwise_or(component,componentMask)
+            # output = cv2.bitwise_or(output, componentMask)
+        return
