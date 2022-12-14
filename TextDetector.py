@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import timeit
-from ComponentAnalyzer import ComponentAnalyzer
+from ComponentAnalyzer import *
 
 class TextDetector:
     def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
@@ -233,12 +233,13 @@ class TextDetector:
 
     
 
-    def __plot_segments(self, segments, title = ""):
+    def __plot_segments(self, segments, title = "", descriptions = None):
+        if descriptions == None:
+            descriptions = ["" for _ in range(len(segments))]
         fig, ax = self.__make_subplot_grid_figure(len(segments), title)
 
         for i, seg in enumerate(segments):
-            description = ""
-            self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + description)
+            self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + descriptions[i])
 
     def __select_text_areas(self):
         analyzer = ComponentAnalyzer(self.image)
@@ -251,7 +252,23 @@ class TextDetector:
 
         img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         img = cv2.bitwise_not(img)
-        self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (thresholded)")
+        segments = analyzer.find_segments(img, buffer = buffer)
+        self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
+
+        def remove_border_components(segment):
+            def is_border_component(c: ComponentData):
+                return c.is_left_edge or c.is_right_edge or c.is_top_edge or c.is_bottom_edge
+                    
+            analyzer = ComponentAnalyzer(segment)
+            mask = analyzer.create_mask(is_border_component)
+            return cv2.subtract(segment, mask)
+
+        for i, seg in enumerate(segments):
+            segments[i] = remove_border_components(seg)
+
+        self.__plot_segments(segments, title = "Border components removed")
+
+
 
         # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 150, self.page_width // 600))
         # for i in range(1, total_labels): # Check each component
@@ -280,29 +297,29 @@ class TextDetector:
         #     self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
         return
 
-    def __analyse_candidate(self, candidate_image):
-            total_labels, label_ids, values, centroid = self.__find_component_stats(candidate_image)
-            n_components_total = total_labels - 1
-            widths = []
-            heights = []
-            areas = []
-            is_squares = []
-            for i in range(1, total_labels): # Check each component
-                width = values[i, cv2.CC_STAT_WIDTH]
-                height = values[i, cv2.CC_STAT_HEIGHT]
-                area = values[i, cv2.CC_STAT_AREA]
-                if area < 20: continue
+    # def __analyse_candidate(self, candidate_image):
+    #         total_labels, label_ids, values, centroid = self.__find_component_stats(candidate_image)
+    #         n_components_total = total_labels - 1
+    #         widths = []
+    #         heights = []
+    #         areas = []
+    #         is_squares = []
+    #         for i in range(1, total_labels): # Check each component
+    #             width = values[i, cv2.CC_STAT_WIDTH]
+    #             height = values[i, cv2.CC_STAT_HEIGHT]
+    #             area = values[i, cv2.CC_STAT_AREA]
+    #             if area < 20: continue
                 
-                is_square = 0.5 < width / height < 2
+    #             is_square = 0.5 < width / height < 2
 
-                widths.append(width)
-                heights.append(height)
-                areas.append(area)
-                is_squares.append(is_square)
-            n_square = sum(is_squares)
-            m_height = np.mean(heights)
-            m_width = np.mean(widths)
-            mean_size = m_height + m_width / 2
-            description = f'{n_components_total} total, {len(widths)} comps'
-            description = ""
-            return True, description 
+    #             widths.append(width)
+    #             heights.append(height)
+    #             areas.append(area)
+    #             is_squares.append(is_square)
+    #         n_square = sum(is_squares)
+    #         m_height = np.mean(heights)
+    #         m_width = np.mean(widths)
+    #         mean_size = m_height + m_width / 2
+    #         description = f'{n_components_total} total, {len(widths)} comps'
+    #         description = ""
+    #         return True, description 
