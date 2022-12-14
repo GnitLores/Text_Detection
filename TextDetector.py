@@ -166,7 +166,7 @@ class TextDetector:
         remove_lines(False)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Remove Horizontal Lines")
 
-        self.processed_image = self.image.copy()
+        self.image_after_secondary_processing = self.image.copy()
 
     def __filter_sentences(self):
         if self.do_visualize:
@@ -231,49 +231,53 @@ class TextDetector:
     
     # def __calculate_componentcoordinates_with_buffer(self, values):
 
+    
+
+    def __plot_segments(self, segments, title = ""):
+        fig, ax = self.__make_subplot_grid_figure(len(segments), title)
+
+        for i, seg in enumerate(segments):
+            description = ""
+            self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + description)
+
     def __select_text_areas(self):
-        # if self.do_visualize:
-        #     key1, key2, key3 = "1", '2', "3"
-        #     fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "6: Select Text Areas")
-        components = ComponentAnalyzer(self.image)
+        analyzer = ComponentAnalyzer(self.image)
 
-        total_labels, label_ids, values, centroid = self.__find_component_stats(self.image)
-        fig1, ax1 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (components)")
-        fig2, ax2 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (image)")
-        fig3, ax3 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (processed)")
+        img = self.resized_image
+        buffer = self.page_width // 200
 
-        # output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        # tmp_img = self.binary_image.copy()
-        tmp_img = self.processed_image
-        # tmp_img = self.sentence_image.copy()
+        self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
+        self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 150, self.page_width // 600))
-        # # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(0, self.page_width // 300), self.page_width // 75))
-        # tmp_img = cv2.morphologyEx(tmp_img, cv2.MORPH_CLOSE, kernel)
-        for i in range(1, total_labels): # Check each component
-            # Calculate coordinates with small buffer
-            x1 = values[i, cv2.CC_STAT_LEFT]
-            y1 = values[i, cv2.CC_STAT_TOP]
-            w = values[i, cv2.CC_STAT_WIDTH]
-            h = values[i, cv2.CC_STAT_HEIGHT]
-            im_h, im_w = tmp_img.shape
-            buffer = self.page_width // 200
-            y2 = min(im_h - 1, y1 + h + buffer)
-            x2 = min(im_w - 1, x1 + w + buffer)
-            x1 = max(0, x1 - buffer)
-            y1 = max(0, y1 - buffer)
+        img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        img = cv2.bitwise_not(img)
+        self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (thresholded)")
 
-            component_image = tmp_img[y1:y2, x1:x2]
-            do_include, description = self.__analyse_candidate(component_image)
-            image_section = self.resized_image[y1:y2, x1:x2]
-            processed_section = cv2.threshold(image_section, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-            processed_section = cv2.bitwise_not(processed_section)
-            # kernel = np.ones((2, 2), np.uint8)
-            # # kernel = np.ones((4, 1), np.uint8)
-            # processed_section = cv2.dilate(processed_section, kernel, iterations=1)
-            self.__make_subplot(component_image, ax1, i, title = f'{i}: ' + description)
-            self.__make_subplot(image_section, ax2, i, title = f'{i}: ' + description)
-            self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
+        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 150, self.page_width // 600))
+        # for i in range(1, total_labels): # Check each component
+        #     # Calculate coordinates with small buffer
+        #     x1 = values[i, cv2.CC_STAT_LEFT]
+        #     y1 = values[i, cv2.CC_STAT_TOP]
+        #     w = values[i, cv2.CC_STAT_WIDTH]
+        #     h = values[i, cv2.CC_STAT_HEIGHT]
+        #     im_h, im_w = tmp_img.shape
+            
+        #     y2 = min(im_h - 1, y1 + h + buffer)
+        #     x2 = min(im_w - 1, x1 + w + buffer)
+        #     x1 = max(0, x1 - buffer)
+        #     y1 = max(0, y1 - buffer)
+
+        #     component_image = tmp_img[y1:y2, x1:x2]
+        #     do_include, description = self.__analyse_candidate(component_image)
+        #     image_section = self.resized_image[y1:y2, x1:x2]
+        #     processed_section = cv2.threshold(image_section, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        #     processed_section = cv2.bitwise_not(processed_section)
+        #     # kernel = np.ones((2, 2), np.uint8)
+        #     # # kernel = np.ones((4, 1), np.uint8)
+        #     # processed_section = cv2.dilate(processed_section, kernel, iterations=1)
+        #     self.__make_subplot(component_image, ax1, i, title = f'{i}: ' + description)
+        #     self.__make_subplot(image_section, ax2, i, title = f'{i}: ' + description)
+        #     self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
         return
 
     def __analyse_candidate(self, candidate_image):
