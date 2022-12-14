@@ -98,24 +98,6 @@ class TextDetector:
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 120, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
-    
-    def __find_component_stats(self, image):
-        analysis = cv2.connectedComponentsWithStats(image, 4, cv2.CV_32S)
-        total_labels, label_ids, values, centroid = analysis
-        return total_labels, label_ids, values, centroid
-
-    def __analyze_connected_components(self, filter_component):
-        total_labels, label_ids, values, centroid = self.__find_component_stats(self.image)
-        output_mask = np.zeros(self.image.shape, dtype = "uint8") # Mask to remove
-        for i in range(1, total_labels): # Check each component
-            area = values[i, cv2.CC_STAT_AREA] 
-            width = values[i, cv2.CC_STAT_WIDTH]
-            height = values[i, cv2.CC_STAT_HEIGHT]
-
-            if filter_component(area, width, height):
-                component_mask = (label_ids == i).astype("uint8") * 255 # Convert component pixels to 255 to mark white
-                output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
-        return output_mask
 
     def __filter_chars(self):
         
@@ -129,14 +111,15 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
         # Create mask of components that are very unlike characters
-        def filter_component(area, width, height):
-            is_too_small = area < self.page_width // 60
-            is_too_big = area > self.page_width // 2.4
-            is_too_wide = width > 3 * height
+        def filter_component(comp: ComponentData):
+            is_too_small = comp.area < self.page_width // 60
+            is_too_big = comp.area > self.page_width // 2.4
+            is_too_wide = comp.width > 3 * comp.height
             do_reject = is_too_small or is_too_big or is_too_wide
             return do_reject
 
-        mask = self.__analyze_connected_components(filter_component)
+        analyzer = ComponentAnalyzer(self.image)
+        mask = analyzer.create_mask(filter_component)
         if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-character Components")
 
         # Subtract mask from image
@@ -180,13 +163,14 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
 
         # Create mask of components that are very unlike sentences
-        def filter_component(area, width, height):
-            is_too_small = width < self.page_width // 60 or height < self.page_width // 60
-            is_not_vertical_box = width > height or area < width * height * 0.3
+        def filter_component(comp: ComponentData):
+            is_too_small = comp.width < self.page_width // 60 or comp.height < self.page_width // 60
+            is_not_vertical_box = comp.width > comp.height or comp.area < comp.bounding_area * 0.3
             do_reject = is_too_small or is_not_vertical_box
             return do_reject
 
-        mask = self.__analyze_connected_components(filter_component)
+        analyzer = ComponentAnalyzer(self.image)
+        mask = analyzer.create_mask(filter_component)
         if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-sentence Components")
 
         self.image = cv2.subtract(self.image, mask)
@@ -206,12 +190,13 @@ class TextDetector:
         if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
 
         # Create mask of components that are very unlike text blocks
-        def filter_component(area, width, height):
-            is_too_small = area < self.page_width // 2.4
+        def filter_component(comp: ComponentData):
+            is_too_small = comp.area < self.page_width // 2.4
             do_reject = is_too_small
             return do_reject
 
-        mask = self.__analyze_connected_components(filter_component)
+        analyzer = ComponentAnalyzer(self.image)
+        mask = analyzer.create_mask(filter_component)
         if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-Text Block Components")
 
         self.image = cv2.subtract(self.image, mask)
@@ -242,18 +227,20 @@ class TextDetector:
             self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + descriptions[i])
 
     def __select_text_areas(self):
+        visualize_segments = False
+        # visualize_segments = True
         analyzer = ComponentAnalyzer(self.image)
 
         img = self.resized_image
         buffer = self.page_width // 200
 
-        self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
-        self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
+        if visualize_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
+        if visualize_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
 
         img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         img = cv2.bitwise_not(img)
         segments = analyzer.find_segments(img, buffer = buffer)
-        self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
+        if visualize_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
 
         def remove_border_components(segment):
             def is_border_component(c: ComponentData):
@@ -266,7 +253,7 @@ class TextDetector:
         for i, seg in enumerate(segments):
             segments[i] = remove_border_components(seg)
 
-        self.__plot_segments(segments, title = "Border components removed")
+        if visualize_segments: self.__plot_segments(segments, title = "Border components removed")
 
 
 
