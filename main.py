@@ -1,6 +1,6 @@
 import cv2
 import os
-from TextDetector import *
+from TextDetector import TextDetector
 
 
 def load_images_from_folder(folder):

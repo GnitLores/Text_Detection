@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import timeit
+from ComponentAnalyzer import ComponentAnalyzer
 
 class TextDetector:
     def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
@@ -84,13 +85,13 @@ class TextDetector:
 
         # Convert to grayscale
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        self.resized_image = self.image.copy()
 
         # smooth the image using Gaussian to reduce high frequeny noise
         gauss_size = self.page_width // 200
         if gauss_size % 2 == 0: gauss_size += 1 # Must be odd
         self.image = cv2.GaussianBlur(self.image, (gauss_size, gauss_size), 0)
         if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
+        self.resized_image = self.image.copy()
 
         # Blackhat - enhances dark objects of interest in a bright background.
         # The black-hat transform is defined as the difference between the closing and the input image.
@@ -215,11 +216,26 @@ class TextDetector:
 
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
+    
+    # def __calculate_component_coordinates(self, values):
+    #         x1 = values[i, cv2.CC_STAT_LEFT]
+    #         y1 = values[i, cv2.CC_STAT_TOP]
+    #         w = values[i, cv2.CC_STAT_WIDTH]
+    #         h = values[i, cv2.CC_STAT_HEIGHT]
+    #         im_h, im_w = self.resized_image.shape
+    #         buffer = self.page_width // 200
+    #         y2 = min(im_h - 1, y1 + h + buffer)
+    #         x2 = min(im_w - 1, x1 + w + buffer)
+    #         x1 = max(0, x1 - buffer)
+    #         y1 = max(0, y1 - buffer)
+    
+    # def __calculate_componentcoordinates_with_buffer(self, values):
 
     def __select_text_areas(self):
         # if self.do_visualize:
         #     key1, key2, key3 = "1", '2', "3"
         #     fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "6: Select Text Areas")
+        components = ComponentAnalyzer(self.image)
 
         total_labels, label_ids, values, centroid = self.__find_component_stats(self.image)
         fig1, ax1 = self.__make_subplot_grid_figure(total_labels - 1, title = "Text Area Candidates (components)")
@@ -252,8 +268,9 @@ class TextDetector:
             image_section = self.resized_image[y1:y2, x1:x2]
             processed_section = cv2.threshold(image_section, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
             processed_section = cv2.bitwise_not(processed_section)
-            kernel = np.ones((2, 2), np.uint8)
-            processed_section = cv2.dilate(processed_section, kernel, iterations=1)
+            # kernel = np.ones((2, 2), np.uint8)
+            # # kernel = np.ones((4, 1), np.uint8)
+            # processed_section = cv2.dilate(processed_section, kernel, iterations=1)
             self.__make_subplot(component_image, ax1, i, title = f'{i}: ' + description)
             self.__make_subplot(image_section, ax2, i, title = f'{i}: ' + description)
             self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
