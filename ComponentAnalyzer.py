@@ -18,12 +18,14 @@ class ComponentAnalyzer:
         return self.image_shape[1]
 
     def __init__(self, image):
+        # self.image_shape: tuple = image.shape
+        self.image_shape = (len(image), len(image[0]))
+
         analysis = cv2.connectedComponentsWithStats(image, 4, cv2.CV_32S)
         total_labels, label_ids, values, centroid = analysis
 
         self.components: list[ComponentData] = []
         for i in range(1, total_labels): # Check each component
-            self.image_shape: tuple = image.shape
 
             data = ComponentData(
             label = i,
@@ -55,7 +57,6 @@ class ComponentAnalyzer:
                 component_mask = comp.boolean_mesh.astype("uint8") * 255 # Convert component pixels to 255 to mark white
                 output_mask = cv2.bitwise_or(output_mask, component_mask) # Add component to mask
         return output_mask
-        
 
 # Data for each component.
 @dataclass
