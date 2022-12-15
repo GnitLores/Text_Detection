@@ -3,8 +3,11 @@ import imutils
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib import patches as patches
 import timeit
 from ComponentAnalyzer import *
+import pytesseract
+from PIL import Image
 
 class TextDetector:
     def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
@@ -42,7 +45,7 @@ class TextDetector:
             print_time("Select text areas", t5, t6)
 
         if self.do_visualize: plt.show()
-        plt.show() # TMP REMOVE!!
+        # plt.show() # TMP REMOVE!!
 
     def __make_subplot_figure(self, subplot_keys, title = ""):
         dpi = 96
@@ -201,22 +204,6 @@ class TextDetector:
 
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
-    
-    # def __calculate_component_coordinates(self, values):
-    #         x1 = values[i, cv2.CC_STAT_LEFT]
-    #         y1 = values[i, cv2.CC_STAT_TOP]
-    #         w = values[i, cv2.CC_STAT_WIDTH]
-    #         h = values[i, cv2.CC_STAT_HEIGHT]
-    #         im_h, im_w = self.resized_image.shape
-    #         buffer = self.page_width // 200
-    #         y2 = min(im_h - 1, y1 + h + buffer)
-    #         x2 = min(im_w - 1, x1 + w + buffer)
-    #         x1 = max(0, x1 - buffer)
-    #         y1 = max(0, y1 - buffer)
-    
-    # def __calculate_componentcoordinates_with_buffer(self, values):
-
-    
 
     def __plot_segments(self, segments, title = "", descriptions = None):
         if descriptions == None:
@@ -243,17 +230,82 @@ class TextDetector:
         if visualize_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
 
         def remove_border_components(segment):
-            def is_border_component(c: ComponentData):
+            def filter_component(c: ComponentData):
                 return c.is_left_edge or c.is_right_edge or c.is_top_edge or c.is_bottom_edge
                     
             analyzer = ComponentAnalyzer(segment)
-            mask = analyzer.create_mask(is_border_component)
+            mask = analyzer.create_mask(filter_component)
             return cv2.subtract(segment, mask)
 
+        # dilation_kernel = np.ones((2, 2), np.uint8)
         for i, seg in enumerate(segments):
+            # segments[i] = cv2.dilate(segments[i], kernel, iterations=1)
             segments[i] = remove_border_components(seg)
+        if visualize_segments: self.__plot_segments(segments, title = "Border Components Removed")
 
-        if visualize_segments: self.__plot_segments(segments, title = "Border components removed")
+
+        # def remove_non_text_components(segment):
+        #     def filter_component(c: ComponentData):
+        #         too_thin_and_wide = c.width > c.height * 3
+        #         too_small = c.area < self.page_width // 100
+        #         return too_thin_and_wide or too_small
+                    
+        #     analyzer = ComponentAnalyzer(segment)
+        #     mask = analyzer.create_mask(filter_component)
+        #     return cv2.subtract(segment, mask)
+
+        # for i, seg in enumerate(segments):
+        #     segments[i] = remove_non_text_components(seg)
+        # if visualize_segments: self.__plot_segments(segments, title = "Non-text components Removed")
+
+        # sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 300, self.page_width // 50))
+        # for i, seg in enumerate(segments):
+        #     segments[i] = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, sentence_kernel)
+        # if visualize_segments: self.__plot_segments(segments, title = "Sentences Joined")
+
+        _, original_page_width, _ = self.original_image.shape
+        image_ratio = original_page_width / self.page_width
+        y1s = []
+        x1s = []
+        y2s = []
+        x2s = []
+        # heights = []
+        # widths = []
+        descriptions = []
+        for i, seg in enumerate(segments):
+            row_sum = np.sum(seg, axis = 1) // 255
+            max_intens = max(row_sum)
+            zero_fraction = sum([(s < 0.05 * max_intens) or s == 0 for s in row_sum]) / len(row_sum)
+
+            filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
+
+            exclude = filling_ratio < 0.1 or zero_fraction > 0.5
+            description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
+            descriptions.append(description)
+
+            if not exclude:
+                x1s.append(math.floor(analyzer.components[i].x1 * image_ratio))
+                y1s.append(math.floor(analyzer.components[i].y1 * image_ratio))
+                x2s.append(math.ceil(analyzer.components[i].x2 * image_ratio))
+                y2s.append(math.ceil(analyzer.components[i].y2 * image_ratio))
+                # heights.append(analyzer.components[i].height)
+                # widths.append(analyzer.components[i].width)
+        if visualize_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
+
+        fig, ax = plt.subplots()
+        # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
+        ax.imshow(self.original_image)
+        buffer = 5
+        for i in range(len(x1s)):
+            # Create a Rectangle patch
+            width = x2s[i] - x1s[i] - 1 + buffer * 2
+            height = y2s[i] - y1s[i] - 1 + buffer * 2
+            rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+
+            # Add the patch to the Axes
+            ax.add_patch(rect)
+        pass
+        
 
 
 

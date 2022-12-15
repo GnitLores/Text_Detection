@@ -1,6 +1,7 @@
 import cv2
 import os
 from TextDetector import TextDetector
+from matplotlib import pyplot as plt
 
 
 def load_images_from_folder(folder):
@@ -11,7 +12,8 @@ def load_images_from_folder(folder):
             images.append(img)
     return images
 
-images = load_images_from_folder("C:\\data\\test")
+# images = load_images_from_folder("C:\\data\\test")
+images = load_images_from_folder("C:\\data\\multiple")
 
 def makeSubplot(image, ax, key, colormap="gray", title=""):
     ax[key].imshow(image, cmap=colormap)
@@ -20,7 +22,8 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
 
 # loop over the input image paths
 for image in images:
-    # textDetector = TextDetector(image)
-    textDetector = TextDetector(image, do_visualize = True)
+    textDetector = TextDetector(image)
+    # textDetector = TextDetector(image, do_visualize = True)
     # textDetector = TextDetector(image, do_profile = True)
     textDetector.detect_text()
+plt.show()
