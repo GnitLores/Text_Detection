@@ -7,7 +7,6 @@ from matplotlib import patches as patches
 import timeit
 from ComponentAnalyzer import *
 import pytesseract
-from PIL import Image
 
 class TextDetector:
     def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
