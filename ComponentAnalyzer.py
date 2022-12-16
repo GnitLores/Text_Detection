@@ -71,43 +71,38 @@ class ComponentData:
     centroid: tuple
     image_shape: tuple
 
+    # Derived component properties:
     @property
     def y2(self) -> int:
         return self.y1 + self.height - 1
-    
     @property
     def x2(self) -> int:
         return self.x1 + self.width - 1
-
     @property
     def bounding_area(self) -> int:
         return self.height * self.width
-
     @property
     def image_height(self) -> int:
         return self.image_shape[0]
-
     @property
     def image_width(self) -> int:
         return self.image_shape[1]
-
+    
+    # Indicates if component contains the image edge:
     @property
     def is_top_edge(self) -> int:
         return self.y1 == 0
-    
     @property
     def is_left_edge(self) -> int:
         return self.x1 == 0
-    
     @property
     def is_bottom_edge(self) -> int:
         return self.y2 == self.image_height - 1
-    
     @property
     def is_right_edge(self) -> int:
         return self.x2 == self.image_width - 1
 
-    # Create buffer around component while respecting image limits
+    # Find buffer around component while respecting image limits:
     def calc_buffer_coords(self, buffer):
         y1 = max(0, self.y1 - buffer)
         x1 = max(0, self.x1 - buffer)
