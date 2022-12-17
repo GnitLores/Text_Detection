@@ -76,6 +76,15 @@ class TextDetector:
         ax[key].set_title(title)
         ax[key].axis('off')
 
+    # Plot a list of small image segments in a grid of subplots.
+    def __plot_segments(self, segments, title = "", descriptions = None):
+        if descriptions == None:
+            descriptions = ["" for _ in range(len(segments))]
+        fig, ax = self.__make_subplot_grid_figure(len(segments), title)
+
+        for i, seg in enumerate(segments):
+            self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + descriptions[i])
+
     def __make_subplot_graph(self, data, ax, key, title = ""):
         ax[key].plot(data)
         ax[key].set_title(title)
@@ -168,6 +177,9 @@ class TextDetector:
 
         self.image_after_secondary_processing = self.image.copy()
 
+    # Remove everything that looks very different from a sentence:
+    # Join character into sentences.
+    # Do a connected component analysis.
     def __filter_sentences(self):
         if self.do_visualize:
             key1, key2, key3 = "1", '2', "3"
@@ -195,6 +207,9 @@ class TextDetector:
 
         self.sentence_image = self.image.copy()
     
+    # Remove everything that looks very different from a text block (a connected component of one or more sentences):
+    # Join sentences into text blocks.
+    # Do a connected component analysis.
     def __filter_text_blocks(self):
         if self.do_visualize:
             key1, key2, key3 = "1", '2', "3"
@@ -219,14 +234,7 @@ class TextDetector:
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
 
-    def __plot_segments(self, segments, title = "", descriptions = None):
-        if descriptions == None:
-            descriptions = ["" for _ in range(len(segments))]
-        fig, ax = self.__make_subplot_grid_figure(len(segments), title)
-
-        for i, seg in enumerate(segments):
-            self.__make_subplot(seg, ax, i + 1, title = f'{i + 1}: ' + descriptions[i])
-
+    # Select text areas to use for OCR based on discriminating text blocks.
     def __select_text_areas(self):
         visualize_segments = False
         # visualize_segments = True
