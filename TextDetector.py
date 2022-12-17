@@ -18,6 +18,8 @@ class TextDetector:
 
         self.page_width = 600
         
+    # Function block that executes each step of the image processing algorithm and optionally
+    # times and profiles each step.
     def detect_text(self):
         if self.do_profile: t0 = timeit.default_timer()
         self.__preprocess()
@@ -44,8 +46,9 @@ class TextDetector:
             print_time("Select text areas", t5, t6)
 
         if self.do_visualize: plt.show()
-        # plt.show() # TMP REMOVE!!
 
+    # Creates a subplot figure for displaying the image.
+    # subplot_keys determines the dimensions and keys of the subplot.
     def __make_subplot_figure(self, subplot_keys, title = ""):
         dpi = 96
         figure_width = 1600
@@ -54,6 +57,8 @@ class TextDetector:
         fig.suptitle(title)
         return fig, ax
 
+    # Creates a figure with a subplot grid for displaying a variable amount of small segments.
+    # Keys are be automatically distributed and the dimensions are approximately square, growing by column first.
     def __make_subplot_grid_figure(self, n_subplots, title = ""):
         n_cols = math.ceil(math.sqrt(n_subplots))
         n_rows = math.ceil(n_subplots / n_cols)
@@ -65,6 +70,7 @@ class TextDetector:
         fig.suptitle(title)
         return fig, ax
 
+    # Display an image in a subplot axis.
     def __make_subplot(self, image, ax, key, colormap = "gray", title = ""):
         ax[key].imshow(image, cmap = colormap)
         ax[key].set_title(title)
@@ -75,6 +81,10 @@ class TextDetector:
         ax[key].set_title(title)
         ax[key].axis('off')
 
+    # Initial processing:
+    # Downscale image to uniform width.
+    # Blur to reduce noise.
+    # Emphasize black on white object.
     def __preprocess(self):
         
         if self.do_visualize:
@@ -101,6 +111,9 @@ class TextDetector:
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
 
+    # Remove everything that looks very different from a character:
+    # Threshold image.
+    # Do a connected component analysis.
     def __filter_chars(self):
         
         if self.do_visualize:
@@ -128,6 +141,8 @@ class TextDetector:
         self.image = cv2.subtract(self.image, mask)
         if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Characters filtered")
 
+    # Secondary processing to remove small artifacts that can remain.
+    # Remove thin line fragments.
     def __process_secondary(self):
         if self.do_visualize:
             key1, key2, key3 = "1", '2', "3"
