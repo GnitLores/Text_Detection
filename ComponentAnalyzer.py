@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import cv2
 import numpy as np
+import math
 
 # Class for handling connected component analysis and making component data
 # available in a more convenient format.
@@ -40,12 +41,39 @@ class ComponentAnalyzer:
 
             self.components.append(data)
 
-    def find_segments(self, image, buffer = 0):
+    def find_segments(self, image, buffer = 0, return_coordinates = False):
+        # Since the segments were found in an image width uniform width,
+        # if the input image has different width from the original image, the coordinates are transformed.
+        # That way this function can be used for any version of the image scaled by width.
+        im_height = image.shape[0]
+        im_width = image.shape[1]
+        image_ratio = im_width / self.image_width
+        
+
         segments = []
+        y1s = []
+        x1s = []
+        y2s = []
+        x2s = []
         for comp in self.components:
             [y1, y2, x1, x2] = comp.calc_buffer_coords(buffer)
+            y1 = max(0, math.floor(y1 * image_ratio))
+            x1 = max(0, math.floor(x1 * image_ratio))
+            y2 = min(im_height - 1, math.ceil(y2 * image_ratio))
+            x2 = min(im_width - 1, math.ceil(x2 * image_ratio))
+
             segments.append(image[y1:y2, x1:x2])
-        return segments
+            y1s.append(y1)
+            x1s.append(x1)
+            y2s.append(y2)
+            x2s.append(x2)
+            
+
+        if return_coordinates:
+            return segments, y1s, x1s, y2s, x2s
+        else:
+            return segments
+        
 
     # Create a mask consisting of all components fulfilling the criteria of a test function taking
     # a ComponentData object as input.
@@ -111,6 +139,5 @@ class ComponentData:
         x2 = min(self.image_width - 1, self.x2 + buffer)
 
         return y1, y2, x1, x2
-
         
         

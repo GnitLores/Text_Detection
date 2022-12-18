@@ -16,9 +16,11 @@ class TextDetector:
         self.show_segments = show_segments
         self.show_result = show_result
         self.do_profile = do_profile
-        self.height, self.width, _ = image.shape
+        # self.height, self.width, _ = image.shape
 
         self.page_width = 600
+        self.uniform_image_ratio = self.original_image.shape[1] / self.page_width
+
         self.dpi = 96
         self.fig_width_wide = 1600
         self.fig_height_wide = 1000
@@ -95,6 +97,7 @@ class TextDetector:
     # Downscale image to uniform width.
     # Blur to reduce noise.
     # Emphasize black on white object.
+    # Threshold image.
     def __preprocess(self):
         
         if self.show_process:
@@ -113,27 +116,28 @@ class TextDetector:
         if gauss_size % 2 == 0: gauss_size += 1 # Must be odd
         self.image = cv2.GaussianBlur(self.image, (gauss_size, gauss_size), 0)
         if self.show_process: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
-        self.resized_image = self.image.copy()
+        
 
         # Blackhat - enhances dark objects of interest in a bright background.
         # The black-hat transform is defined as the difference between the closing and the input image.
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 120, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
+        self.preprocessed_image = self.image.copy()
         if self.show_process: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
+        
+
+        # Get black/white image with otsu threshold
+        self.image = cv2.threshold(self.image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        self.binary_image = self.image.copy()
+        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
     # Remove everything that looks very different from a character:
-    # Threshold image.
     # Do a connected component analysis.
     def __filter_chars(self):
         
         if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "2: Filter Characters")
-
-        # Get black/white image with otsu threshold
-        self.binary_image = cv2.threshold(self.image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-        self.image = self.binary_image.copy()
-        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
         # Create mask of components that are very unlike characters
         def filter_component(comp: ComponentData):
@@ -239,14 +243,15 @@ class TextDetector:
     def __select_text_areas(self):
         analyzer = ComponentAnalyzer(self.image)
 
-        img = self.resized_image
+        img = self.preprocessed_image
+        # img = self.binary_image
         buffer = self.page_width // 200
 
         if self.show_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
         if self.show_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
 
         img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-        img = cv2.bitwise_not(img)
+        # img = cv2.bitwise_not(img)
         segments = analyzer.find_segments(img, buffer = buffer)
         if self.show_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
 
@@ -284,15 +289,8 @@ class TextDetector:
         #     segments[i] = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, sentence_kernel)
         # if visualize_segments: self.__plot_segments(segments, title = "Sentences Joined")
 
-        _, original_page_width, _ = self.original_image.shape
-        image_ratio = original_page_width / self.page_width
-        y1s = []
-        x1s = []
-        y2s = []
-        x2s = []
-        # heights = []
-        # widths = []
         descriptions = []
+        include = []
         for i, seg in enumerate(segments):
             row_sum = np.sum(seg, axis = 1) // 255
             max_intens = max(row_sum)
@@ -300,34 +298,32 @@ class TextDetector:
 
             filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
 
-            exclude = filling_ratio < 0.1 or zero_fraction > 0.5
-            # exclude = False
+            include.append(filling_ratio > 0.1 and zero_fraction < 0.5)
             description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
             descriptions.append(description)
 
-            if not exclude:
-                x1s.append(math.floor(analyzer.components[i].x1 * image_ratio))
-                y1s.append(math.floor(analyzer.components[i].y1 * image_ratio))
-                x2s.append(math.ceil(analyzer.components[i].x2 * image_ratio))
-                y2s.append(math.ceil(analyzer.components[i].y2 * image_ratio))
-                # heights.append(analyzer.components[i].height)
-                # widths.append(analyzer.components[i].width)
         if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
 
         if self.show_result:
+            self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
+            
+            _, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
             fig, ax = plt.subplots(figsize = (self.fig_width_tall / self.dpi, self.fig_height_tall / self.dpi), dpi = self.dpi)
             # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
             ax.imshow(self.original_image)
-            buffer = 5
+            buffer = 0
             for i in range(len(x1s)):
-                # Create a Rectangle patch
-                width = x2s[i] - x1s[i] - 1 + buffer * 2
-                height = y2s[i] - y1s[i] - 1 + buffer * 2
-                rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+                if include[i]:
+                    # Create a Rectangle patch
+                    width = x2s[i] - x1s[i] - 1 + buffer * 2
+                    height = y2s[i] - y1s[i] - 1 + buffer * 2
+                    rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
 
-                # Add the patch to the Axes
-                ax.add_patch(rect)
+                    # Add the patch to the Axes
+                    ax.add_patch(rect)
         
+        def map_segment_coordinates_to_original_image():
+            self.uniform_image_ratio
 
 
 
@@ -356,7 +352,7 @@ class TextDetector:
         #     self.__make_subplot(component_image, ax1, i, title = f'{i}: ' + description)
         #     self.__make_subplot(image_section, ax2, i, title = f'{i}: ' + description)
         #     self.__make_subplot(processed_section, ax3, i, title = f'{i}: ' + description)
-        return
+        # return
 
     # def __analyse_candidate(self, candidate_image):
     #         total_labels, label_ids, values, centroid = self.__find_component_stats(candidate_image)
