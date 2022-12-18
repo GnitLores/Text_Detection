@@ -19,7 +19,8 @@ class TextDetector:
         # self.height, self.width, _ = image.shape
 
         self.page_width = 600
-        self.uniform_image_ratio = self.original_image.shape[1] / self.page_width
+        self.original_page_width = self.original_image.shape[1]
+        self.uniform_image_ratio = self.original_page_width / self.page_width
 
         self.dpi = 96
         self.fig_width_wide = 1600
@@ -242,18 +243,46 @@ class TextDetector:
     # Select text areas to use for OCR based on discriminating text blocks.
     def __select_text_areas(self):
         analyzer = ComponentAnalyzer(self.image)
-
-        img = self.preprocessed_image
-        # img = self.binary_image
+        
         buffer = self.page_width // 200
+        segments, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
 
-        if self.show_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
-        if self.show_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
+        if self.show_segments: self.__plot_segments(segments, title = "Original")
 
-        img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-        # img = cv2.bitwise_not(img)
-        segments = analyzer.find_segments(img, buffer = buffer)
-        if self.show_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
+        for i, seg in enumerate(segments):
+            seg = cv2.cvtColor(seg, cv2.COLOR_BGR2GRAY)
+            segments[i] = cv2.threshold(seg, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+            segments[i] = cv2.bitwise_not(segments[i])
+
+        if self.show_segments: self.__plot_segments(segments, title = "Thresholded")
+
+        # img = self.preprocessed_image
+        # # img = self.binary_image
+        
+
+        # if self.show_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
+        # if self.show_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
+
+        # img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        # # img = cv2.bitwise_not(img)
+        # segments = analyzer.find_segments(img, buffer = buffer)
+        # if self.show_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
+        
+
+
+        def remove_grain_components(segment):
+            def filter_component(c: ComponentData):
+                return c.area < round((self.page_width // 100) * self.uniform_image_ratio)
+
+            analyzer = ComponentAnalyzer(segment)
+            mask = analyzer.create_mask(filter_component)
+            return cv2.subtract(segment, mask)
+
+        for i, seg in enumerate(segments):
+            segments[i] = remove_grain_components(seg)
+        if self.show_segments: self.__plot_segments(segments, title = "Grain Removed")
+
+
 
         def remove_border_components(segment):
             def filter_component(c: ComponentData):
@@ -263,18 +292,31 @@ class TextDetector:
             mask = analyzer.create_mask(filter_component)
             return cv2.subtract(segment, mask)
 
-        # dilation_kernel = np.ones((2, 2), np.uint8)
         for i, seg in enumerate(segments):
-            # segments[i] = cv2.dilate(segments[i], kernel, iterations=1)
             segments[i] = remove_border_components(seg)
         if self.show_segments: self.__plot_segments(segments, title = "Border Components Removed")
 
 
+
+        def remove_large_components(segment):
+            def filter_component(c: ComponentData):
+                return c.height > c.image_height * 0.5 or c.area > c.image_area * 0.3
+                    
+            analyzer = ComponentAnalyzer(segment)
+            mask = analyzer.create_mask(filter_component)
+            return cv2.subtract(segment, mask)
+
+        for i, seg in enumerate(segments):
+            segments[i] = remove_large_components(seg)
+        if self.show_segments: self.__plot_segments(segments, title = "Large Components Removed")
+
         # def remove_non_text_components(segment):
         #     def filter_component(c: ComponentData):
-        #         too_thin_and_wide = c.width > c.height * 3
-        #         too_small = c.area < self.page_width // 100
-        #         return too_thin_and_wide or too_small
+        #         # Filter oddly shaped compnents above a certain size threshold (to avoid catching small character components)
+        #         size_threshold = round((self.page_width // 40) * self.uniform_image_ratio)
+        #         too_wide = c.width > size_threshold and c.width > c.height * 2
+        #         too_narrow = c.height > size_threshold and c.height > c.width * 3 # A bit more conservative to prevent catching two characters in same sentence joined
+        #         return too_wide or too_narrow
                     
         #     analyzer = ComponentAnalyzer(segment)
         #     mask = analyzer.create_mask(filter_component)
@@ -282,15 +324,37 @@ class TextDetector:
 
         # for i, seg in enumerate(segments):
         #     segments[i] = remove_non_text_components(seg)
-        # if visualize_segments: self.__plot_segments(segments, title = "Non-text components Removed")
+        # if self.show_segments: self.__plot_segments(segments, title = "Non-Text Components Removed")
 
-        # sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 300, self.page_width // 50))
+        square_threshold = 0.7
+        kernel_width = round((self.page_width // 300) * self.uniform_image_ratio)
+        kernel_height = 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_width, kernel_height))
+        joined_segments = []
+        params = []
+        for seg in segments:
+            joined_segment = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, kernel)
+            joined_segments.append(joined_segment)
+
+            analyzer = ComponentAnalyzer(joined_segment)
+            n_square = 0
+            for c in analyzer.components:
+                if c.width > c.height * square_threshold and c.height > c.width * square_threshold:
+                    n_square += 1
+            ratio = n_square / len(analyzer.components) if n_square > 0 else 0
+            params.append(f'n_square={n_square}, ratio={ratio:.2f}')
+        if self.show_segments: self.__plot_segments(joined_segments, title = "Square Characters", descriptions = params)
+
+        # ratios = []
         # for i, seg in enumerate(segments):
-        #     segments[i] = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, sentence_kernel)
-        # if visualize_segments: self.__plot_segments(segments, title = "Sentences Joined")
+        #     height_ratio = seg.shape[0] / self.original_image.shape[0]
+        #     width_ratio = seg.shape[1] / self.original_image.shape[1]
+        #     area_ratio = (seg.shape[0] * seg.shape[1]) / (self.original_image.shape[0] * self.original_image.shape[1])
+        #     ratios.append(f'a_ration={area_ratio:.3f}, h_ratio={height_ratio:.2f}, w_ratio={width_ratio:.2f}')
+        # self.__plot_segments(segments, title = "Discrimination:", descriptions = ratios)
 
         descriptions = []
-        include = []
+        includes = []
         for i, seg in enumerate(segments):
             row_sum = np.sum(seg, axis = 1) // 255
             max_intens = max(row_sum)
@@ -298,14 +362,15 @@ class TextDetector:
 
             filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
 
-            include.append(filling_ratio > 0.1 and zero_fraction < 0.5)
+            include = filling_ratio > 0.1 and zero_fraction < 0.5
+            includes.append(include)
             description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
             descriptions.append(description)
 
-        if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
+        # if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
 
         if self.show_result:
-            self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
+            # self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
             
             _, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
             fig, ax = plt.subplots(figsize = (self.fig_width_tall / self.dpi, self.fig_height_tall / self.dpi), dpi = self.dpi)
@@ -313,7 +378,7 @@ class TextDetector:
             ax.imshow(self.original_image)
             buffer = 0
             for i in range(len(x1s)):
-                if include[i]:
+                if includes[i]:
                     # Create a Rectangle patch
                     width = x2s[i] - x1s[i] - 1 + buffer * 2
                     height = y2s[i] - y1s[i] - 1 + buffer * 2
