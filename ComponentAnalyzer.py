@@ -115,6 +115,9 @@ class ComponentData:
     @property
     def image_width(self) -> int:
         return self.image_shape[1]
+    @property
+    def image_area(self) -> int:
+        return self.image_height * self.image_width
     
     # Indicates if component contains the image edge:
     @property
