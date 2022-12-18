@@ -272,7 +272,7 @@ class TextDetector:
 
         def remove_grain_components(segment):
             def filter_component(c: ComponentData):
-                return c.area < round((self.page_width // 100) * self.uniform_image_ratio)
+                return c.area < self.original_page_width // 100
 
             analyzer = ComponentAnalyzer(segment)
             mask = analyzer.create_mask(filter_component)
@@ -327,7 +327,7 @@ class TextDetector:
         # if self.show_segments: self.__plot_segments(segments, title = "Non-Text Components Removed")
 
         square_threshold = 0.7
-        kernel_width = round((self.page_width // 300) * self.uniform_image_ratio)
+        kernel_width = self.original_page_width // 200
         kernel_height = 1
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_width, kernel_height))
         joined_segments = []
