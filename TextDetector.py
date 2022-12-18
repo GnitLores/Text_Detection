@@ -237,8 +237,6 @@ class TextDetector:
 
     # Select text areas to use for OCR based on discriminating text blocks.
     def __select_text_areas(self):
-        self.show_segments = False
-        # visualize_segments = True
         analyzer = ComponentAnalyzer(self.image)
 
         img = self.resized_image
@@ -303,6 +301,7 @@ class TextDetector:
             filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
 
             exclude = filling_ratio < 0.1 or zero_fraction > 0.5
+            # exclude = False
             description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
             descriptions.append(description)
 

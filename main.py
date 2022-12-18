@@ -21,7 +21,7 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
     ax[key].axis('off')
 
 # Comment line to disable option:
-show_process = True
+# show_process = True
 show_segments = True
 show_result = True
 
