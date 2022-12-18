@@ -393,11 +393,11 @@ class TextDetector:
             # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
             self.__make_subplot(self.original_image, ax, "all", colormap = "gray", title = "Candidate Areas")
             self.__make_subplot(self.original_image, ax, "included", colormap = "gray", title = "Included Areas")
-            buffer = 0
+            buffer = 2 # Move left and upper border a bit to display rectangle nicely
             for i in range(len(x1s)):
                 # Create a Rectangle patch
-                width = x2s[i] - x1s[i] - 1 + buffer * 2
-                height = y2s[i] - y1s[i] - 1 + buffer * 2
+                width = x2s[i] - x1s[i] - 1 + buffer
+                height = y2s[i] - y1s[i] - 1 + buffer
                 rect_red_all = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
                 rect_red_include = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
                 rect_blue_all = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='b', facecolor='none')

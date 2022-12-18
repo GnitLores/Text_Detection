@@ -12,8 +12,8 @@ def load_images_from_folder(folder):
             images.append(img)
     return images
 
-# images = load_images_from_folder("C:\\data\\test")
-images = load_images_from_folder("C:\\data\\multiple")
+images = load_images_from_folder("C:\\data\\test")
+# images = load_images_from_folder("C:\\data\\multiple")
 
 def makeSubplot(image, ax, key, colormap="gray", title=""):
     ax[key].imshow(image, cmap=colormap)
