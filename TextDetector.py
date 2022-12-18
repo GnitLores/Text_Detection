@@ -9,14 +9,21 @@ from ComponentAnalyzer import *
 import pytesseract
 
 class TextDetector:
-    def __init__(self, image, do_visualize = False, do_profile = False, is_text_vertical = True):
+    def __init__(self, image, is_text_vertical = True, show_process = False, show_segments = False, show_result = False, do_profile = False):
         self.original_image = image
-        self.do_visualize = do_visualize
-        self.do_profile = do_profile
         self.vert_text = is_text_vertical
+        self.show_process = show_process
+        self.show_segments = show_segments
+        self.show_result = show_result
+        self.do_profile = do_profile
         self.height, self.width, _ = image.shape
 
         self.page_width = 600
+        self.dpi = 96
+        self.fig_width_wide = 1600
+        self.fig_height_wide = 1000
+        self.fig_width_tall = 800
+        self.fig_height_tall = 1200
         
     # Function block that executes each step of the image processing algorithm and optionally
     # times and profiles each step.
@@ -45,15 +52,12 @@ class TextDetector:
             print_time("Filter text blocks", t4, t5)
             print_time("Select text areas", t5, t6)
 
-        if self.do_visualize: plt.show()
+        plt.show()
 
     # Creates a subplot figure for displaying the image.
     # subplot_keys determines the dimensions and keys of the subplot.
     def __make_subplot_figure(self, subplot_keys, title = ""):
-        dpi = 96
-        figure_width = 1600
-        figure_height = 1000
-        fig, ax = plt.subplot_mosaic([subplot_keys], figsize = (figure_width / dpi, figure_height / dpi), dpi = dpi)
+        fig, ax = plt.subplot_mosaic([subplot_keys], figsize = (self.fig_width_wide / self.dpi, self.fig_height_wide / self.dpi), dpi = self.dpi)
         fig.suptitle(title)
         return fig, ax
 
@@ -63,10 +67,7 @@ class TextDetector:
         n_cols = math.ceil(math.sqrt(n_subplots))
         n_rows = math.ceil(n_subplots / n_cols)
         subplot_keys = [[c + (n_cols * r) + 1 for c in range(n_cols)] for r in range(n_rows)]
-        dpi = 96
-        figure_width = 1600
-        figure_height = 1000
-        fig, ax = plt.subplot_mosaic(subplot_keys, figsize = (figure_width / dpi, figure_height / dpi), dpi = dpi)
+        fig, ax = plt.subplot_mosaic(subplot_keys, figsize = (self.fig_width_wide / self.dpi, self.fig_height_wide / self.dpi), dpi = self.dpi)
         fig.suptitle(title)
         return fig, ax
 
@@ -96,10 +97,10 @@ class TextDetector:
     # Emphasize black on white object.
     def __preprocess(self):
         
-        if self.do_visualize:
+        if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "1: Preprocessing")
-        if self.do_visualize: self.__make_subplot(self.original_image, ax, key1, title = "Original Image")
+        if self.show_process: self.__make_subplot(self.original_image, ax, key1, title = "Original Image")
         
         # Resize to uniform width
         self.image = imutils.resize(self.original_image, width = self.page_width)
@@ -111,28 +112,28 @@ class TextDetector:
         gauss_size = self.page_width // 200
         if gauss_size % 2 == 0: gauss_size += 1 # Must be odd
         self.image = cv2.GaussianBlur(self.image, (gauss_size, gauss_size), 0)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
+        if self.show_process: self.__make_subplot(self.image, ax, key2, title = "Rescaled, Greyscale, Blurred image")
         self.resized_image = self.image.copy()
 
         # Blackhat - enhances dark objects of interest in a bright background.
         # The black-hat transform is defined as the difference between the closing and the input image.
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 120, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_BLACKHAT, kernel)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
+        if self.show_process: self.__make_subplot(self.image, ax, key3, title = "Blackhat Transform")
 
     # Remove everything that looks very different from a character:
     # Threshold image.
     # Do a connected component analysis.
     def __filter_chars(self):
         
-        if self.do_visualize:
+        if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "2: Filter Characters")
 
         # Get black/white image with otsu threshold
         self.binary_image = cv2.threshold(self.image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         self.image = self.binary_image.copy()
-        if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
+        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Thresholded image")
 
         # Create mask of components that are very unlike characters
         def filter_component(comp: ComponentData):
@@ -144,16 +145,16 @@ class TextDetector:
 
         analyzer = ComponentAnalyzer(self.image)
         mask = analyzer.create_mask(filter_component)
-        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-character Components")
+        if self.show_process: self.__make_subplot(mask, ax, key2, title = "Non-character Components")
 
         # Subtract mask from image
         self.image = cv2.subtract(self.image, mask)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Characters filtered")
+        if self.show_process: self.__make_subplot(self.image, ax, key3, title = "Characters filtered")
 
     # Secondary processing to remove small artifacts that can remain.
     # Remove thin line fragments.
     def __process_secondary(self):
-        if self.do_visualize:
+        if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "3: Secondary processing")
 
@@ -169,11 +170,11 @@ class TextDetector:
 
         # Remove vertical lines
         remove_lines(True)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Remove Vertical Lines")
+        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Remove Vertical Lines")
 
         # Remove horizontal lines
         remove_lines(False)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key2, title = "Remove Horizontal Lines")
+        if self.show_process: self.__make_subplot(self.image, ax, key2, title = "Remove Horizontal Lines")
 
         self.image_after_secondary_processing = self.image.copy()
 
@@ -181,7 +182,7 @@ class TextDetector:
     # Join character into sentences.
     # Do a connected component analysis.
     def __filter_sentences(self):
-        if self.do_visualize:
+        if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "4: Filter Sentences")
 
@@ -189,7 +190,7 @@ class TextDetector:
         # gaps in between letters
         sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 300, self.page_width // 50))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
+        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Join Sentences")
 
         # Create mask of components that are very unlike sentences
         def filter_component(comp: ComponentData):
@@ -200,10 +201,10 @@ class TextDetector:
 
         analyzer = ComponentAnalyzer(self.image)
         mask = analyzer.create_mask(filter_component)
-        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-sentence Components")
+        if self.show_process: self.__make_subplot(mask, ax, key2, title = "Non-sentence Components")
 
         self.image = cv2.subtract(self.image, mask)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
+        if self.show_process: self.__make_subplot(self.image, ax, key3, title = "Sentences Filtered")
 
         self.sentence_image = self.image.copy()
     
@@ -211,7 +212,7 @@ class TextDetector:
     # Join sentences into text blocks.
     # Do a connected component analysis.
     def __filter_text_blocks(self):
-        if self.do_visualize:
+        if self.show_process:
             key1, key2, key3 = "1", '2', "3"
             fig, ax = self.__make_subplot_figure([key1, key2, key3], title = "5: Filter Text Blocks")
         
@@ -219,7 +220,7 @@ class TextDetector:
         # gaps between lines of text
         sentence_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (self.page_width // 50, self.page_width // 300))
         self.image = cv2.morphologyEx(self.image, cv2.MORPH_CLOSE, sentence_kernel)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
+        if self.show_process: self.__make_subplot(self.image, ax, key1, title = "Join Text Blocks")
 
         # Create mask of components that are very unlike text blocks
         def filter_component(comp: ComponentData):
@@ -229,27 +230,27 @@ class TextDetector:
 
         analyzer = ComponentAnalyzer(self.image)
         mask = analyzer.create_mask(filter_component)
-        if self.do_visualize: self.__make_subplot(mask, ax, key2, title = "Non-Text Block Components")
+        if self.show_process: self.__make_subplot(mask, ax, key2, title = "Non-Text Block Components")
 
         self.image = cv2.subtract(self.image, mask)
-        if self.do_visualize: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
+        if self.show_process: self.__make_subplot(self.image, ax, key3, title = "Text Blocks Filtered")
 
     # Select text areas to use for OCR based on discriminating text blocks.
     def __select_text_areas(self):
-        visualize_segments = False
+        self.show_segments = False
         # visualize_segments = True
         analyzer = ComponentAnalyzer(self.image)
 
         img = self.resized_image
         buffer = self.page_width // 200
 
-        if visualize_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
-        if visualize_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
+        if self.show_segments: self.__plot_segments(analyzer.find_segments(self.image, buffer = buffer), title = "Text Area Candidates (text block components)")
+        if self.show_segments: self.__plot_segments(analyzer.find_segments(img, buffer = buffer), title = "Text Area Candidates (base image)")
 
         img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         img = cv2.bitwise_not(img)
         segments = analyzer.find_segments(img, buffer = buffer)
-        if visualize_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
+        if self.show_segments: self.__plot_segments(segments, title = "Text Area Candidates (thresholded)")
 
         def remove_border_components(segment):
             def filter_component(c: ComponentData):
@@ -263,7 +264,7 @@ class TextDetector:
         for i, seg in enumerate(segments):
             # segments[i] = cv2.dilate(segments[i], kernel, iterations=1)
             segments[i] = remove_border_components(seg)
-        if visualize_segments: self.__plot_segments(segments, title = "Border Components Removed")
+        if self.show_segments: self.__plot_segments(segments, title = "Border Components Removed")
 
 
         # def remove_non_text_components(segment):
@@ -312,21 +313,21 @@ class TextDetector:
                 y2s.append(math.ceil(analyzer.components[i].y2 * image_ratio))
                 # heights.append(analyzer.components[i].height)
                 # widths.append(analyzer.components[i].width)
-        if visualize_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
+        if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
 
-        fig, ax = plt.subplots()
-        # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
-        ax.imshow(self.original_image)
-        buffer = 5
-        for i in range(len(x1s)):
-            # Create a Rectangle patch
-            width = x2s[i] - x1s[i] - 1 + buffer * 2
-            height = y2s[i] - y1s[i] - 1 + buffer * 2
-            rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+        if self.show_result:
+            fig, ax = plt.subplots(figsize = (self.fig_width_tall / self.dpi, self.fig_height_tall / self.dpi), dpi = self.dpi)
+            # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
+            ax.imshow(self.original_image)
+            buffer = 5
+            for i in range(len(x1s)):
+                # Create a Rectangle patch
+                width = x2s[i] - x1s[i] - 1 + buffer * 2
+                height = y2s[i] - y1s[i] - 1 + buffer * 2
+                rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
 
-            # Add the patch to the Axes
-            ax.add_patch(rect)
-        pass
+                # Add the patch to the Axes
+                ax.add_patch(rect)
         
 
 
