@@ -55,7 +55,7 @@ class TextDetector:
             print_time("Filter text blocks", t4, t5)
             print_time("Select text areas", t5, t6)
 
-        plt.show()
+        
 
     # Creates a subplot figure for displaying the image.
     # subplot_keys determines the dimensions and keys of the subplot.
@@ -373,15 +373,17 @@ class TextDetector:
         for i, seg in enumerate(segments):
             row_sum = np.sum(seg, axis = 1) // 255
             max_intens = max(row_sum)
-            zero_fraction = sum([(s < 0.05 * max_intens) or s == 0 for s in row_sum]) / len(row_sum)
+            zero_fraction = (sum([(s < 0.05 * max_intens) or s == 0 for s in row_sum]) / len(row_sum)) * 100
 
-            filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
+            filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape) * 100
 
-            includes[i] = includes[i] and filling_ratio > 0.1 and zero_fraction < 0.5
-            description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
+            segment_size_ratio = np.prod(seg.shape) / np.prod(self.original_image.shape) * 100
+
+            includes[i] = includes[i] and filling_ratio > 10 and zero_fraction < 50 and segment_size_ratio > 0.08
+            description = f'Fill={filling_ratio:.1f}, Zeros={zero_fraction:.1f},Size={segment_size_ratio:.2f}'
             descriptions.append(description)
 
-        # if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
+        if self.show_segments: self.__plot_segments(segments, title = "Discrimination:", descriptions = descriptions)
 
         if self.show_result:
             # self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
