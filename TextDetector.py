@@ -389,19 +389,24 @@ class TextDetector:
             # self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
             
             # _, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
-            fig, ax = plt.subplots(figsize = (self.fig_width_tall / self.dpi, self.fig_height_tall / self.dpi), dpi = self.dpi)
+            fig, ax = self.__make_subplot_figure(["all", "included"], title = "Readable Areas")
             # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
-            ax.imshow(self.original_image)
+            self.__make_subplot(self.original_image, ax, "all", colormap = "gray", title = "Candidate Areas")
+            self.__make_subplot(self.original_image, ax, "included", colormap = "gray", title = "Included Areas")
             buffer = 0
             for i in range(len(x1s)):
-                if includes[i]:
-                    # Create a Rectangle patch
-                    width = x2s[i] - x1s[i] - 1 + buffer * 2
-                    height = y2s[i] - y1s[i] - 1 + buffer * 2
-                    rect = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+                # Create a Rectangle patch
+                width = x2s[i] - x1s[i] - 1 + buffer * 2
+                height = y2s[i] - y1s[i] - 1 + buffer * 2
+                rect_red_all = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+                rect_red_include = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='r', facecolor='none')
+                rect_blue_all = patches.Rectangle((x1s[i] - buffer, y1s[i] - buffer), width, height, linewidth=1, edgecolor='b', facecolor='none')
 
-                    # Add the patch to the Axes
-                    ax.add_patch(rect)
+                if includes[i]:
+                    ax["included"].add_patch(rect_red_include)
+                    ax["all"].add_patch(rect_red_all)
+                else:
+                    ax["all"].add_patch(rect_blue_all)
         
         def map_segment_coordinates_to_original_image():
             self.uniform_image_ratio
