@@ -326,23 +326,39 @@ class TextDetector:
         #     segments[i] = remove_non_text_components(seg)
         # if self.show_segments: self.__plot_segments(segments, title = "Non-Text Components Removed")
 
-        square_threshold = 0.7
-        kernel_width = self.original_page_width // 200
+        includes = [True] * len(segments)
+
+        square_ratio_cutoff = 0.5
+        filled_square_ratio_cutoff = 0.3
+        squariness = 0.7
+        filledness = 0.4
+        kernel_width = self.original_page_width // 250
         kernel_height = 1
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_width, kernel_height))
         joined_segments = []
         params = []
-        for seg in segments:
+        for i, seg in enumerate(segments):
             joined_segment = cv2.morphologyEx(seg, cv2.MORPH_CLOSE, kernel)
             joined_segments.append(joined_segment)
 
             analyzer = ComponentAnalyzer(joined_segment)
             n_square = 0
+            n_filled = 0
+            n_filled_square = 0
             for c in analyzer.components:
-                if c.width > c.height * square_threshold and c.height > c.width * square_threshold:
-                    n_square += 1
-            ratio = n_square / len(analyzer.components) if n_square > 0 else 0
-            params.append(f'n_square={n_square}, ratio={ratio:.2f}')
+                is_square = c.width > c.height * squariness and c.height > c.width * squariness
+                is_filled = c.area > c.height * c.width * filledness
+                if is_square: n_square += 1
+                if is_filled: n_filled += 1
+                if is_filled and is_square: n_filled_square += 1
+            n_segments = len(analyzer.components)
+            square_ratio = n_square / n_segments if n_square > 0 else 0
+            filled_ratio = n_filled / n_segments if n_filled > 0 else 0
+            filled_square_ratio = n_filled_square / n_segments if n_filled_square > 0 else 0
+
+            includes[i] = includes[i] and square_ratio > square_ratio_cutoff and filled_square_ratio > filled_square_ratio_cutoff
+
+            params.append(f'square={square_ratio:.2f}, filled={filled_ratio:.2f}, filled_square={filled_square_ratio:.2f}')
         if self.show_segments: self.__plot_segments(joined_segments, title = "Square Characters", descriptions = params)
 
         # ratios = []
@@ -354,7 +370,6 @@ class TextDetector:
         # self.__plot_segments(segments, title = "Discrimination:", descriptions = ratios)
 
         descriptions = []
-        includes = []
         for i, seg in enumerate(segments):
             row_sum = np.sum(seg, axis = 1) // 255
             max_intens = max(row_sum)
@@ -362,8 +377,7 @@ class TextDetector:
 
             filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape)
 
-            include = filling_ratio > 0.1 and zero_fraction < 0.5
-            includes.append(include)
+            includes[i] = includes[i] and filling_ratio > 0.1 and zero_fraction < 0.5
             description = f'Fill={filling_ratio:.2f}, Zeros={zero_fraction:.2f}'
             descriptions.append(description)
 
@@ -372,7 +386,7 @@ class TextDetector:
         if self.show_result:
             # self.__plot_segments(analyzer.find_segments(self.original_image, buffer = buffer), title = "Discrimination:", descriptions = descriptions)
             
-            _, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
+            # _, y1s, x1s, y2s, x2s = analyzer.find_segments(self.original_image, buffer = buffer, return_coordinates = True)
             fig, ax = plt.subplots(figsize = (self.fig_width_tall / self.dpi, self.fig_height_tall / self.dpi), dpi = self.dpi)
             # rgb_img = cv2.cvtColor(binary_img, cv.CV_GRAY2RGB)
             ax.imshow(self.original_image)
