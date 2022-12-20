@@ -1,5 +1,4 @@
 import math
-import imutils
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
@@ -136,7 +135,16 @@ class TextDetector:
             self.__make_subplot(self.original_image, ax, key1, title="Original Image")
 
         # Resize to uniform width
-        self.image = imutils.resize(self.original_image, width=self.page_width)
+        def resize_to_uniform_width(im, new_width, inter=cv2.INTER_AREA):
+            old_height, old_width = im.shape[0], im.shape[1]
+            ratio = new_width / float(old_width)
+            dimensions = (new_width, int(old_height * ratio))
+            return cv2.resize(im, dimensions, interpolation=inter)
+
+        # self.image = imutils.resize(self.original_image, width=self.page_width)
+        self.image = resize_to_uniform_width(
+            self.original_image, new_width=self.page_width
+        )
 
         # Convert to grayscale
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
