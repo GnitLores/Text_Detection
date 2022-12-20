@@ -5,7 +5,8 @@ from matplotlib import pyplot as plt
 from matplotlib import patches as patches
 import timeit
 from ComponentAnalyzer import *
-import pytesseract
+
+# import pytesseract
 
 
 class TextDetector:
