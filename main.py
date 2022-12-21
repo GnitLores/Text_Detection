@@ -1,7 +1,8 @@
-import cv2
 import os
-from TextDetector import TextDetector
+
+import cv2
 from matplotlib import pyplot as plt
+from TextDetector import TextDetector
 
 
 def load_images_from_folder(folder):

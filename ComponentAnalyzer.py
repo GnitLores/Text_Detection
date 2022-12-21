@@ -1,7 +1,9 @@
+import math
 from dataclasses import dataclass
+
 import cv2
 import numpy as np
-import math
+
 
 # Class for handling connected component analysis and making component data
 # available in a more convenient format.
