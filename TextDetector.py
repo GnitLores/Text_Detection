@@ -1,10 +1,11 @@
 import math
+import timeit
+
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib import patches as patches
-import timeit
 from ComponentAnalyzer import *
+from matplotlib import patches as patches
+from matplotlib import pyplot as plt
 
 # import pytesseract
 
@@ -108,12 +109,12 @@ class TextDetector:
 
     # Plot a list of small image segments in a grid of subplots.
     def __plot_segments(self, segments, title="", descriptions=None):
-        if descriptions == None:
+        if descriptions is None:
             descriptions = ["" for _ in range(len(segments))]
         fig, ax = self.__make_subplot_grid_figure(len(segments), title)
 
         for i, seg in enumerate(segments):
-            self.__make_subplot(seg, ax, i + 1, title=f"{i + 1}: " + descriptions[i])
+            self.__make_subplot(seg, ax, i + 1, title=f"{i + 1}: {descriptions[i]}")
 
     def __make_subplot_graph(self, data, ax, key, title=""):
         ax[key].plot(data)
@@ -477,8 +478,10 @@ class TextDetector:
             row_sum = np.sum(seg, axis=1) // 255
             max_intens = max(row_sum)
             zero_fraction = (
-                sum([(s < 0.05 * max_intens) or s == 0 for s in row_sum]) / len(row_sum)
-            ) * 100
+                sum((s < 0.05 * max_intens) or s == 0 for s in row_sum)
+                / len(row_sum)
+                * 100
+            )
 
             filling_ratio = (np.sum(seg) // 255) / np.prod(seg.shape) * 100
 
