@@ -24,25 +24,14 @@ def makeSubplot(image, ax, key, colormap="gray", title=""):
     ax[key].axis("off")
 
 
-# Comment line to disable option:
-# show_process = True
-# show_segments = True
-show_result = True
-
-if "show_process" not in locals():
-    show_process = False
-if "show_segments" not in locals():
-    show_segments = False
-if "show_result" not in locals():
-    show_result = False
-
 # loop over the input image paths
 for image in images:
     textDetector = TextDetector(
         image,
-        show_process=show_process,
-        show_segments=show_segments,
-        show_result=show_result,
+        # Comment line to disable option:
+        # show_process=True,
+        # show_segments=True,
+        show_result=True,
     )
     textDetector.detect_text()
 plt.show()
