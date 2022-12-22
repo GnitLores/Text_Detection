@@ -70,10 +70,7 @@ class ComponentAnalyzer:
             y2s.append(y2)
             x2s.append(x2)
 
-        if return_coordinates:
-            return segments, y1s, x1s, y2s, x2s
-        else:
-            return segments
+        return (segments, y1s, x1s, y2s, x2s) if return_coordinates else segments
 
     # Create a mask consisting of all components fulfilling the criteria of a test function taking
     # a ComponentData object as input.
@@ -81,7 +78,7 @@ class ComponentAnalyzer:
     def create_mask(self, test_function=None):
         output_mask = np.zeros(self.image_shape, dtype="uint8")  # Mask to remove
         for comp in self.components:
-            if test_function == None or test_function(comp):
+            if test_function is None or test_function(comp):
                 component_mask = (
                     comp.boolean_mesh.astype("uint8") * 255
                 )  # Convert component pixels to 255 to mark white
